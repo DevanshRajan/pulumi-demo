@@ -9,7 +9,6 @@ on:
     types: [created]
 
 permissions:
-  id-token: write    # Required for AWS OIDC authentication
   contents: read
   issues: write
   pull-requests: write
@@ -23,19 +22,14 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: self-hosted
     env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
       DEV_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev' }}
       PROD_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
-          audience: sts.amazonaws.com
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -47,6 +41,7 @@ jobs:
         run: |
           pip3 install --break-system-packages -r requirements.txt || pip install -r requirements.txt
 
+      # Auto-create Dev State Bucket
       - name: Auto-Create Dev S3 State Bucket
         run: |
           if ! aws s3api head-bucket --bucket "${DEV_STATE_BUCKET}" 2>/dev/null; then
@@ -60,6 +55,7 @@ jobs:
           pulumi login s3://${DEV_STATE_BUCKET}
           pulumi preview --stack dev
 
+      # Auto-create Prod State Bucket
       - name: Auto-Create Prod S3 State Bucket
         run: |
           if ! aws s3api head-bucket --bucket "${PROD_STATE_BUCKET}" 2>/dev/null; then
@@ -81,19 +77,14 @@ jobs:
     if: github.event_name == 'push'
     runs-on: self-hosted
     env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
       DEV_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev' }}
       PROD_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
-          audience: sts.amazonaws.com
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -132,6 +123,10 @@ jobs:
     name: Atlantis PR Comment Handler
     if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/pulumi')
     runs-on: self-hosted
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
     steps:
       - name: Acknowledge Comment
         uses: peter-evans/create-or-update-comment@v4
@@ -147,13 +142,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.pr_data.outputs.head_ref }}
-
-      - name: Configure AWS Credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
-          audience: sts.amazonaws.com
 
       - name: Setup Python
         uses: actions/setup-python@v5
