@@ -53,6 +53,7 @@ jobs:
       - name: Pulumi Preview - Dev Stack
         run: |
           pulumi login s3://${DEV_STATE_BUCKET}
+          pulumi stack select dev --create
           pulumi preview --stack dev
 
       # Auto-create Prod State Bucket
@@ -67,6 +68,7 @@ jobs:
       - name: Pulumi Preview - Prod Stack
         run: |
           pulumi login s3://${PROD_STATE_BUCKET}
+          pulumi stack select prod --create
           pulumi preview --stack prod
 
   # ==========================================
@@ -104,6 +106,7 @@ jobs:
             aws s3api put-bucket-encryption --bucket "${DEV_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
           fi
           pulumi login s3://${DEV_STATE_BUCKET}
+          pulumi stack select dev --create
           pulumi up --stack dev --yes
 
       - name: Deploy Prod Stack
@@ -114,6 +117,7 @@ jobs:
             aws s3api put-bucket-encryption --bucket "${PROD_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
           fi
           pulumi login s3://${PROD_STATE_BUCKET}
+          pulumi stack select prod --create
           pulumi up --stack prod --yes
 
   # ==========================================
@@ -190,6 +194,9 @@ jobs:
         run: |
           CMD="${{ steps.parse_cmd.outputs.cmd }}"
           STACK="${{ steps.parse_cmd.outputs.stack }}"
+
+          # Automatically initialize stack if not yet created in S3 backend
+          pulumi stack select $STACK --create
 
           if [ "$CMD" = "preview" ]; then
             pulumi preview --stack $STACK --non-interactive > output.txt 2>&1
