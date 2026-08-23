@@ -1,0 +1,252 @@
+name: Pulumi GitOps Pipeline
+
+on:
+  pull_request:
+    branches: [main, master, demo]
+  push:
+    branches: [main, master, demo]
+  issue_comment:
+    types: [created]
+
+permissions:
+  id-token: write    # Required for AWS OIDC authentication
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  # ==========================================
+  # 1. Automatic PR Preview (CI)
+  # ==========================================
+  pr-auto-preview:
+    name: PR Auto Preview (Dev & Prod)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      DEV_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev' }}
+      PROD_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      # Auto-create Dev State Bucket
+      - name: Auto-Create Dev S3 State Bucket
+        run: |
+          if ! aws s3api head-bucket --bucket "${DEV_STATE_BUCKET}" 2>/dev/null; then
+            aws s3api create-bucket --bucket "${DEV_STATE_BUCKET}" --region "${AWS_REGION}"
+            aws s3api put-bucket-versioning --bucket "${DEV_STATE_BUCKET}" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "${DEV_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+          fi
+
+      - name: Pulumi Preview - Dev Stack
+        run: |
+          pulumi login s3://${DEV_STATE_BUCKET}
+          pulumi preview --stack dev
+
+      # Auto-create Prod State Bucket
+      - name: Auto-Create Prod S3 State Bucket
+        run: |
+          if ! aws s3api head-bucket --bucket "${PROD_STATE_BUCKET}" 2>/dev/null; then
+            aws s3api create-bucket --bucket "${PROD_STATE_BUCKET}" --region "${AWS_REGION}"
+            aws s3api put-bucket-versioning --bucket "${PROD_STATE_BUCKET}" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "${PROD_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+          fi
+
+      - name: Pulumi Preview - Prod Stack
+        run: |
+          pulumi login s3://${PROD_STATE_BUCKET}
+          pulumi preview --stack prod
+
+  # ==========================================
+  # 2. Automatic Deploy on Merge (CD)
+  # ==========================================
+  auto-deploy:
+    name: Deploy to AWS on Merge
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      DEV_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev' }}
+      PROD_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Deploy Dev Stack
+        run: |
+          if ! aws s3api head-bucket --bucket "${DEV_STATE_BUCKET}" 2>/dev/null; then
+            aws s3api create-bucket --bucket "${DEV_STATE_BUCKET}" --region "${AWS_REGION}"
+            aws s3api put-bucket-versioning --bucket "${DEV_STATE_BUCKET}" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "${DEV_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+          fi
+          pulumi login s3://${DEV_STATE_BUCKET}
+          pulumi up --stack dev --yes
+
+      - name: Deploy Prod Stack
+        run: |
+          if ! aws s3api head-bucket --bucket "${PROD_STATE_BUCKET}" 2>/dev/null; then
+            aws s3api create-bucket --bucket "${PROD_STATE_BUCKET}" --region "${AWS_REGION}"
+            aws s3api put-bucket-versioning --bucket "${PROD_STATE_BUCKET}" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "${PROD_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+          fi
+          pulumi login s3://${PROD_STATE_BUCKET}
+          pulumi up --stack prod --yes
+
+  # ==========================================
+  # 3. Atlantis-Style PR Comment Commands
+  # ==========================================
+  pr-comment-command:
+    name: Atlantis PR Comment Handler
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/pulumi')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Acknowledge Comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ github.event.comment.id }}
+          reactions: rocket
+
+      - name: Fetch PR Checkout Ref
+        id: pr_data
+        uses: xt0rted/pull-request-comment-branch@v2
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr_data.outputs.head_ref }}
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          audience: sts.amazonaws.com
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      - name: Parse Command and Target Stack
+        id: parse_cmd
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+          CMD=$(echo "$COMMENT" | awk '{print $2}')
+          STACK=$(echo "$COMMENT" | awk '{print $3}')
+          if [ -z "$STACK" ]; then STACK="dev"; fi
+
+          echo "cmd=$CMD" >> $GITHUB_OUTPUT
+          echo "stack=$STACK" >> $GITHUB_OUTPUT
+
+      - name: Auto-Create S3 State Bucket if Missing
+        run: |
+          STACK="${{ steps.parse_cmd.outputs.stack }}"
+          AWS_REGION="${{ secrets.AWS_REGION || 'us-east-1' }}"
+          if [ "$STACK" = "prod" ]; then
+            STATE_BUCKET="${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod' }}"
+          else
+            STATE_BUCKET="${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev' }}"
+          fi
+
+          echo "PULUMI_BACKEND_URL=s3://$STATE_BUCKET" >> $GITHUB_ENV
+
+          if ! aws s3api head-bucket --bucket "$STATE_BUCKET" 2>/dev/null; then
+            aws s3api create-bucket --bucket "$STATE_BUCKET" --region "${AWS_REGION}"
+            aws s3api put-bucket-versioning --bucket "$STATE_BUCKET" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "$STATE_BUCKET" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+          fi
+
+      - name: Login to S3 Backend
+        run: pulumi login ${PULUMI_BACKEND_URL}
+
+      - name: Execute Pulumi Command
+        id: execute_pulumi
+        run: |
+          CMD="${{ steps.parse_cmd.outputs.cmd }}"
+          STACK="${{ steps.parse_cmd.outputs.stack }}"
+
+          if [ "$CMD" = "preview" ]; then
+            pulumi preview --stack $STACK --non-interactive > output.txt 2>&1
+          elif [ "$CMD" = "up" ] || [ "$CMD" = "apply" ]; then
+            pulumi up --stack $STACK --yes --non-interactive > output.txt 2>&1
+          elif [ "$CMD" == "destroy" ]; then
+            pulumi destroy --stack $STACK --yes --non-interactive > output.txt 2>&1
+          else
+            echo "Unknown command '$CMD'. Supported: preview, up, destroy" > output.txt
+          fi
+
+          {
+            echo 'PULUMI_OUTPUT<<EOF'
+            cat output.txt
+            echo 'EOF'
+          } >> $GITHUB_ENV
+
+      - name: Post Result Comment to PR
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            ### 🤖 Pulumi GitOps Bot Output
+
+            **Executed Command:** `${{ github.event.comment.body }}`
+            **State Backend:** `${{ env.PULUMI_BACKEND_URL }}`
+
+            <details><summary>Click to expand execution logs</summary>
+
+            ```text
+            ${{ env.PULUMI_OUTPUT }}
+            ```
+
+            </details>
