@@ -6,8 +6,8 @@ class AppConfig:
         self.aws_config = pulumi.Config("aws")
         self.env = pulumi.get_stack()
 
-        # Stack Region
-        self.aws_region = self.aws_config.get("region") or "us-east-1"
+        # Stack Region (Default: ap-south-1 Mumbai)
+        self.aws_region = self.aws_config.get("region") or "ap-south-1"
 
         # S3 Configuration
         self.bucket_name = self.config.get("bucketName") or f"pulumi-app-s3-{self.env}"
