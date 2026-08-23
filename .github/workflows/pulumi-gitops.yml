@@ -25,8 +25,8 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
-      DEV_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev' }}
-      PROD_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod' }}
+      DEV_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev-ap' }}
+      PROD_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod-ap' }}
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE || '' }}
     steps:
       - name: Checkout repository
@@ -42,33 +42,33 @@ jobs:
         run: |
           pip3 install --break-system-packages -r requirements.txt || pip install -r requirements.txt
 
-      # Auto-create Dev State Bucket
+      # Auto-create Dev State Bucket in ap-south-1
       - name: Auto-Create Dev S3 State Bucket
         run: |
           if ! aws s3api head-bucket --bucket "${DEV_STATE_BUCKET}" 2>/dev/null; then
-            aws s3api create-bucket --bucket "${DEV_STATE_BUCKET}" --region "${AWS_REGION}" --create-bucket-configuration LocationConstraint="${AWS_REGION}" 2>/dev/null || aws s3api create-bucket --bucket "${DEV_STATE_BUCKET}" --region "${AWS_REGION}"
+            aws s3api create-bucket --bucket "${DEV_STATE_BUCKET}" --region "${AWS_REGION}" --create-bucket-configuration LocationConstraint="${AWS_REGION}"
             aws s3api put-bucket-versioning --bucket "${DEV_STATE_BUCKET}" --versioning-configuration Status=Enabled
             aws s3api put-bucket-encryption --bucket "${DEV_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
           fi
 
       - name: Pulumi Preview - Dev Stack
         run: |
-          pulumi login s3://${DEV_STATE_BUCKET}
+          pulumi login s3://${DEV_STATE_BUCKET}?region=${AWS_REGION}
           pulumi stack select dev --create
           pulumi preview --stack dev
 
-      # Auto-create Prod State Bucket
+      # Auto-create Prod State Bucket in ap-south-1
       - name: Auto-Create Prod S3 State Bucket
         run: |
           if ! aws s3api head-bucket --bucket "${PROD_STATE_BUCKET}" 2>/dev/null; then
-            aws s3api create-bucket --bucket "${PROD_STATE_BUCKET}" --region "${AWS_REGION}" --create-bucket-configuration LocationConstraint="${AWS_REGION}" 2>/dev/null || aws s3api create-bucket --bucket "${PROD_STATE_BUCKET}" --region "${AWS_REGION}"
+            aws s3api create-bucket --bucket "${PROD_STATE_BUCKET}" --region "${AWS_REGION}" --create-bucket-configuration LocationConstraint="${AWS_REGION}"
             aws s3api put-bucket-versioning --bucket "${PROD_STATE_BUCKET}" --versioning-configuration Status=Enabled
             aws s3api put-bucket-encryption --bucket "${PROD_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
           fi
 
       - name: Pulumi Preview - Prod Stack
         run: |
-          pulumi login s3://${PROD_STATE_BUCKET}
+          pulumi login s3://${PROD_STATE_BUCKET}?region=${AWS_REGION}
           pulumi stack select prod --create
           pulumi preview --stack prod
 
@@ -83,8 +83,8 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
-      DEV_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev' }}
-      PROD_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod' }}
+      DEV_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev-ap' }}
+      PROD_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod-ap' }}
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE || '' }}
     steps:
       - name: Checkout repository
@@ -103,22 +103,22 @@ jobs:
       - name: Deploy Dev Stack
         run: |
           if ! aws s3api head-bucket --bucket "${DEV_STATE_BUCKET}" 2>/dev/null; then
-            aws s3api create-bucket --bucket "${DEV_STATE_BUCKET}" --region "${AWS_REGION}" --create-bucket-configuration LocationConstraint="${AWS_REGION}" 2>/dev/null || aws s3api create-bucket --bucket "${DEV_STATE_BUCKET}" --region "${AWS_REGION}"
+            aws s3api create-bucket --bucket "${DEV_STATE_BUCKET}" --region "${AWS_REGION}" --create-bucket-configuration LocationConstraint="${AWS_REGION}"
             aws s3api put-bucket-versioning --bucket "${DEV_STATE_BUCKET}" --versioning-configuration Status=Enabled
             aws s3api put-bucket-encryption --bucket "${DEV_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
           fi
-          pulumi login s3://${DEV_STATE_BUCKET}
+          pulumi login s3://${DEV_STATE_BUCKET}?region=${AWS_REGION}
           pulumi stack select dev --create
           pulumi up --stack dev --yes
 
       - name: Deploy Prod Stack
         run: |
           if ! aws s3api head-bucket --bucket "${PROD_STATE_BUCKET}" 2>/dev/null; then
-            aws s3api create-bucket --bucket "${PROD_STATE_BUCKET}" --region "${AWS_REGION}" --create-bucket-configuration LocationConstraint="${AWS_REGION}" 2>/dev/null || aws s3api create-bucket --bucket "${PROD_STATE_BUCKET}" --region "${AWS_REGION}"
+            aws s3api create-bucket --bucket "${PROD_STATE_BUCKET}" --region "${AWS_REGION}" --create-bucket-configuration LocationConstraint="${AWS_REGION}"
             aws s3api put-bucket-versioning --bucket "${PROD_STATE_BUCKET}" --versioning-configuration Status=Enabled
             aws s3api put-bucket-encryption --bucket "${PROD_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
           fi
-          pulumi login s3://${PROD_STATE_BUCKET}
+          pulumi login s3://${PROD_STATE_BUCKET}?region=${AWS_REGION}
           pulumi stack select prod --create
           pulumi up --stack prod --yes
 
@@ -176,15 +176,15 @@ jobs:
           STACK="${{ steps.parse_cmd.outputs.stack }}"
           AWS_REGION="${{ secrets.AWS_REGION || 'ap-south-1' }}"
           if [ "$STACK" = "prod" ]; then
-            STATE_BUCKET="${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod' }}"
+            STATE_BUCKET="${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod-ap' }}"
           else
-            STATE_BUCKET="${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev' }}"
+            STATE_BUCKET="${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev-ap' }}"
           fi
 
-          echo "PULUMI_BACKEND_URL=s3://$STATE_BUCKET" >> $GITHUB_ENV
+          echo "PULUMI_BACKEND_URL=s3://$STATE_BUCKET?region=$AWS_REGION" >> $GITHUB_ENV
 
           if ! aws s3api head-bucket --bucket "$STATE_BUCKET" 2>/dev/null; then
-            aws s3api create-bucket --bucket "$STATE_BUCKET" --region "${AWS_REGION}" --create-bucket-configuration LocationConstraint="${AWS_REGION}" 2>/dev/null || aws s3api create-bucket --bucket "$STATE_BUCKET" --region "${AWS_REGION}"
+            aws s3api create-bucket --bucket "$STATE_BUCKET" --region "${AWS_REGION}" --create-bucket-configuration LocationConstraint="${AWS_REGION}"
             aws s3api put-bucket-versioning --bucket "$STATE_BUCKET" --versioning-configuration Status=Enabled
             aws s3api put-bucket-encryption --bucket "$STATE_BUCKET" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
           fi
