@@ -1,0 +1,17 @@
+# Documentation folder (ignored from git commits)
+docs/
+
+# Python virtualenv & bytecode
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pulumi CLI local state
+.pulumi/
+
+# Environment secrets & keys
+.env
+*.pem
+*.key

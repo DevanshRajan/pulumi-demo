@@ -1,0 +1,10 @@
+config:
+  aws:region: ap-south-1
+  arn-pulumi-demo:bucketName: pulumi-app-s3-dev-ap
+  arn-pulumi-demo:instanceName: pulumi-app-ec2-dev
+  arn-pulumi-demo:vpcId: vpc-0ed1afe327978a1c5
+  arn-pulumi-demo:subnetId: subnet-06858bfcded833914
+  arn-pulumi-demo:securityGroupId: sg-0cfa6af5ac9909993
+  arn-pulumi-demo:instanceType: t3.micro
+  arn-pulumi-demo:storageSizeGb: "20"
+  arn-pulumi-demo:keyName: packer

@@ -1,0 +1,6 @@
+name: arn-pulumi-demo
+runtime:
+  name: python
+  options:
+    virtualenv: venv
+description: Pulumi AWS infrastructure for dev and prod environments using Python with S3 state backend
