@@ -1,0 +1,75 @@
+name: Pulumi PR Preview (GitOps with AWS OIDC & S3 Backend)
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+      - demo
+
+permissions:
+  id-token: write    # Required for AWS OIDC authentication
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    name: Pulumi Preview (Dev & Prod)
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      DEV_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev' }}
+      PROD_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+
+      # Auto-create Dev State Bucket if missing
+      - name: Auto-Create Dev S3 State Bucket
+        run: |
+          if ! aws s3api head-bucket --bucket "${DEV_STATE_BUCKET}" 2>/dev/null; then
+            echo "Auto-creating Dev state bucket: ${DEV_STATE_BUCKET}"
+            aws s3api create-bucket --bucket "${DEV_STATE_BUCKET}" --region "${AWS_REGION}"
+            aws s3api put-bucket-versioning --bucket "${DEV_STATE_BUCKET}" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "${DEV_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+          fi
+
+      - name: Pulumi Preview - Dev Stack
+        run: |
+          pulumi login s3://${DEV_STATE_BUCKET}
+          pulumi preview --stack dev
+
+      # Auto-create Prod State Bucket if missing
+      - name: Auto-Create Prod S3 State Bucket
+        run: |
+          if ! aws s3api head-bucket --bucket "${PROD_STATE_BUCKET}" 2>/dev/null; then
+            echo "Auto-creating Prod state bucket: ${PROD_STATE_BUCKET}"
+            aws s3api create-bucket --bucket "${PROD_STATE_BUCKET}" --region "${AWS_REGION}"
+            aws s3api put-bucket-versioning --bucket "${PROD_STATE_BUCKET}" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "${PROD_STATE_BUCKET}" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
+          fi
+
+      - name: Pulumi Preview - Prod Stack
+        run: |
+          pulumi login s3://${PROD_STATE_BUCKET}
+          pulumi preview --stack prod
