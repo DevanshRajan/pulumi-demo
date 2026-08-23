@@ -1,6 +1,6 @@
 config:
   aws:region: ap-south-1
-  arn-pulumi-demo:bucketName: pulumi-app-s3-prod
+  arn-pulumi-demo:bucketName: pulumi-app-s3-prod-ap
   arn-pulumi-demo:instanceName: pulumi-app-ec2-prod
   arn-pulumi-demo:vpcId: vpc-0ed1afe327978a1c5
   arn-pulumi-demo:subnetId: subnet-06858bfcded833914
