@@ -27,6 +27,7 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
       DEV_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev' }}
       PROD_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod' }}
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE || '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -84,6 +85,7 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
       DEV_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_DEV || 'arnav-pulumi-state-dev' }}
       PROD_STATE_BUCKET: ${{ secrets.PULUMI_STATE_BUCKET_PROD || 'arnav-pulumi-state-prod' }}
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE || '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -131,6 +133,7 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE || '' }}
     steps:
       - name: Acknowledge Comment
         uses: peter-evans/create-or-update-comment@v4
